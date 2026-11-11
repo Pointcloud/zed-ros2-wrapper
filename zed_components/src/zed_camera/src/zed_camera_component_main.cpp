@@ -1673,6 +1673,17 @@ void ZedCamera::getSensorsParams()
   sl_tools::getParam(
     shared_from_this(), "sensors.sensors_pub_rate",
     mSensPubRate, mSensPubRate, " * Sensors publishing rate [Hz]: ", true, 1.0, 400.0);
+
+  // PERSIUS (2026-11-11): optional fixed gyro variance. The SDK's angular_velocity_covariance
+  // is motion dependent (measured on a ZED 2i: ~2.5e-6 (rad/s)^2 at rest, 2e-3..2e-2 while
+  // driving), which is not a statement about the gyro's accuracy (integrated heading stays
+  // within 0.2% of an independent reference in the same motion). A Kalman filter fusing
+  // imu/data takes that field literally and hands yaw to its other, worse sources exactly when
+  // the robot moves. 0.0 keeps the SDK's value.
+  sl_tools::getParam(
+    shared_from_this(), "sensors.gyro_covariance_override",
+    mGyroCovOverride, mGyroCovOverride,
+    " * Gyro covariance override [(rad/s)^2, 0 = SDK value]: ", false, 0.0, 1.0);
 }
 
 void ZedCamera::getMappingParams()
@@ -6053,6 +6064,13 @@ void ZedCamera::publishImuMessages(
       imuMsg->angular_velocity_covariance[i * 3 + 2] =
         sens_data.imu.angular_velocity_covariance.r[r * 3 + 2] * DEG2RAD *
         DEG2RAD;
+    }
+    // PERSIUS: fixed gyro variance (see sensors.gyro_covariance_override)
+    if (mGyroCovOverride > 0.0) {
+      imuMsg->angular_velocity_covariance.fill(0.0);
+      imuMsg->angular_velocity_covariance[0] = mGyroCovOverride;
+      imuMsg->angular_velocity_covariance[4] = mGyroCovOverride;
+      imuMsg->angular_velocity_covariance[8] = mGyroCovOverride;
     }
     // <---- Covariances copy
 

@@ -626,6 +626,9 @@ private:
 
   bool mSensCameraSync = false;
   double mSensPubRate = 200.;
+  // PERSIUS: fixed angular-velocity variance [(rad/s)^2] published in the IMU message instead of
+  // the SDK's motion-dependent estimate. 0.0 (default) = publish the SDK's value unchanged.
+  double mGyroCovOverride = 0.0;
   double mImuOdr = 0.0;          // Hardware IMU output data rate [Hz] (0 = unknown)
   double mImuDecimAccum = 0.0;   // Fractional accumulator for IMU rate decimation
 
