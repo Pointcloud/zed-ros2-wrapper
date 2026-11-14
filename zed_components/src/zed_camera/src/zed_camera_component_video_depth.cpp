@@ -2341,6 +2341,16 @@ void ZedCamera::publishImageWithInfo(
         img.getWidth() * img.getPixelBytes(), img.getHeight(),
         cudaMemcpyDeviceToDevice));
 
+    // Wait for the copy to finish BEFORE the buffer is handed to NITROS (persius fix, 2026-11-14).
+    // cudaMemcpy2D is "synchronous" only in that it is issued on the legacy default stream; for
+    // device-to-device transfers CUDA does NO host-side synchronisation
+    // (docs.nvidia.com/cuda/cuda-runtime-api/api-sync-behavior.html), so it can return with the copy
+    // still queued, and the NITROS/GXF conversion then read a part-filled buffer: with NITROS on, 83-92%
+    // of the depth frames nvblox integrated began with 2 or 3 MiB of zeros (45 of 150 frames seen by a
+    // plain subscriber, camera only; 0 of 843 / 559 after this sync). Measurements and method:
+    // docs/mapping/nvblox_blank_depth_check_20261113.md in the persius repo.
+    CUDA_CHECK(cudaStreamSynchronize(0));
+
     // Adding header data
     std_msgs::msg::Header header;
     header.stamp = mUsePubTimestamps ? get_clock()->now() : t;
@@ -2479,6 +2489,16 @@ void ZedCamera::publishDepthMapWithInfo(
           spitch,
           depth.getWidth() * depth.getPixelBytes(), depth.getHeight(),
           cudaMemcpyDeviceToDevice));
+
+      // Wait for the copy to finish BEFORE the buffer is handed to NITROS (persius fix, 2026-11-14).
+      // cudaMemcpy2D is "synchronous" only in that it is issued on the legacy default stream; for
+      // device-to-device transfers CUDA does NO host-side synchronisation
+      // (docs.nvidia.com/cuda/cuda-runtime-api/api-sync-behavior.html), so it can return with the copy
+      // still queued, and the NITROS/GXF conversion then read a part-filled buffer: with NITROS on, 83-92%
+      // of the depth frames nvblox integrated began with 2 or 3 MiB of zeros (45 of 150 frames seen by a
+      // plain subscriber, camera only; 0 of 843 / 559 after this sync). Measurements and method:
+      // docs/mapping/nvblox_blank_depth_check_20261113.md in the persius repo.
+      CUDA_CHECK(cudaStreamSynchronize(0));
 
       // Adding header data
       std_msgs::msg::Header header;
